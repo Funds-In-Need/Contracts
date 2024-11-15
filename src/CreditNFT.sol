@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/utils/Strings.sol";  // Add this import
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "./CreditScore.sol";
 
-contract CreditNFT is ERC1155 {
+contract myToken is ERC1155 {
     // Constants for token IDs
     uint256 public constant BRONZE = 0;
     uint256 public constant SILVER = 1;
@@ -23,7 +24,7 @@ contract CreditNFT is ERC1155 {
     // Events
     event CreditNFTMinted(address indexed user, uint256 tier, uint256 score);
 
-    constructor(address _creditScoreContract) ERC1155("https://your-metadata-uri/{id}.json") {
+    constructor(address _creditScoreContract) ERC1155("https://ipfs.io/ipfs/QmUhSAKtW9CJELgdCBSP4ayDLvc3NLopRQiyETF8exyyvq/{id}.json") {
         creditScoreContract = CreditScore(_creditScoreContract);
     }
 
@@ -41,7 +42,7 @@ contract CreditNFT is ERC1155 {
     }
 
     // Mint NFT based on credit score
-    function mintCreditNFT() external nonReentrant {
+    function mintCreditNFT() external {
         require(!hasMinted[msg.sender], "Already minted NFT");
         
         // Get user's credit score directly from CreditScore contract
@@ -65,6 +66,10 @@ contract CreditNFT is ERC1155 {
         hasMinted[msg.sender] = false;
     }
 
+    function uri(uint256 tokenId) public pure override returns (string memory) {
+        return string(abi.encodePacked("https://ipfs.io/ipfs/QmUhSAKtW9CJELgdCBSP4ayDLvc3NLopRQiyETF8exyyvq/", Strings.toString(tokenId), ".json"));
+    }
+
     // View functions
     function checkEligibility(address user) external view returns (uint256) {
         uint256 score = creditScoreContract.creditScores(user);
@@ -73,27 +78,5 @@ contract CreditNFT is ERC1155 {
 
     function hasUserMinted(address user) external view returns (bool) {
         return hasMinted[user];
-    }
-}
-
-
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
-
-contract GameItems is ERC1155, Ownable {
-    
-    uint256 public constant CHARIZARD = 0;
-    uint256 public constant IVYSAUR = 1;
-    uint256 public constant VENUSAUR = 2;
-    uint256 public constant CHARMANDER = 3;
-    
-    mapping (uint256 => string) private _uris;
-
-    constructor() public ERC1155("https://bafybeihul6zsmbzyrgmjth3ynkmchepyvyhcwecn2yxc57ppqgpvr35zsq.ipfs.dweb.link/{id}.json") {
-        _mint(msg.sender, CHARIZARD, 100, "");
-        _mint(msg.sender, IVYSAUR, 100, "");
-        _mint(msg.sender, VENUSAUR, 100, "");
-        _mint(msg.sender, CHARMANDER, 100, "");
     }
 }
