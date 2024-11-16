@@ -131,61 +131,48 @@ contract CreditBorrowing {
         emit Borrowed(msg.sender, borrowAmount, borrowers[msg.sender].collateralAmount, tier);
     }
 
-    // Modified repay function
-    // function repayLoan() public payable {
-    //     BorrowerInfo storage borrower = borrowers[msg.sender];
-    //     require(borrower.hasActiveLoan, "No active loan");
-    //     require(msg.value >= borrower.borrowedAmount, "Insufficient repayment");
-
-    //     // Return collateral
-    //     uint256 collateralToReturn = borrower.collateralAmount;
-        
-    //     // Clear borrower data
-    //     borrower.borrowedAmount = 0;
-    //     borrower.hasActiveLoan = false;
-    //     borrower.hasCollateral = false;
-    //     borrower.collateralAmount = 0;
-    //     borrower.collateralValueUSD = 0;
-
-    //     // Return collateral
-    //     (bool success, ) = payable(msg.sender).call{value: collateralToReturn}("");
-    //     require(success, "Collateral return failed");
-
-    //     emit LoanRepaid(msg.sender, msg.value);
-    // }
-
-    // Modified repay function
-    function repayLoan() public payable {
+    // Modified repay function to accept a repayment amount
+    function repayLoan(uint256 repaymentAmount) public payable {
         BorrowerInfo storage borrower = borrowers[msg.sender];
         require(borrower.hasActiveLoan, "No active loan");
-        require(msg.value >= borrower.borrowedAmount, "Insufficient repayment");
+        require(repaymentAmount > 0, "Repayment amount must be greater than 0");
+        require(msg.value == repaymentAmount, "Sent ETH amount does not match repayment amount");
 
-        // Get the NFT tier before clearing data
-        uint256 nftTier = borrower.nftTier;
+        // Ensure repayment is not greater than the borrowed amount
+        require(repaymentAmount <= borrower.borrowedAmount, "Repayment exceeds borrowed amount");
 
-        // Return collateral
-        uint256 collateralToReturn = borrower.collateralAmount;
-        
-        // Clear borrower data
-        borrower.borrowedAmount = 0;
-        borrower.hasActiveLoan = false;
-        borrower.hasCollateral = false;
-        borrower.collateralAmount = 0;
-        borrower.collateralValueUSD = 0;
+        // Reduce the borrowed amount by the repayment amount
+        borrower.borrowedAmount -= repaymentAmount;
 
-        // Burn NFT if user has one
-        if (nftTier != 999) { // 999 was our default for no NFT
-            uint256 nftBalance = creditNFT.balanceOf(msg.sender, nftTier);
-            if (nftBalance > 0) {
-                creditNFT.burn(msg.sender, nftTier, 1);
+        // If the loan is fully repaid, clear the loan data and return collateral
+        if (borrower.borrowedAmount == 0) {
+            uint256 nftTier = borrower.nftTier;
+            uint256 collateralToReturn = borrower.collateralAmount;
+
+            // Clear borrower data
+            borrower.hasActiveLoan = false;
+            borrower.hasCollateral = false;
+            borrower.collateralAmount = 0;
+            borrower.collateralValueUSD = 0;
+
+            // Burn NFT if user has one
+            if (nftTier != 999) {
+                uint256 nftBalance = creditNFT.balanceOf(msg.sender, nftTier);
+                if (nftBalance > 0) {
+                    creditNFT.burn(msg.sender, nftTier, 1);
+                }
             }
+
+            // Return collateral
+            (bool success, ) = payable(msg.sender).call{value: collateralToReturn}("");
+            require(success, "Collateral return failed");
+
+            // Emit full loan repayment event
+            emit LoanRepaid(msg.sender, repaymentAmount);
+        } else {
+            // Emit partial loan repayment event
+            emit LoanRepaid(msg.sender, repaymentAmount);
         }
-
-        // Return collateral
-        (bool success, ) = payable(msg.sender).call{value: collateralToReturn}("");
-        require(success, "Collateral return failed");
-
-        emit LoanRepaid(msg.sender, msg.value);
     }
 
     // Rest of the functions remain the same...
