@@ -8,17 +8,17 @@ interface IChronicle {
     function readWithAge() external view returns (uint256 value, uint256 age);
 }
 
-interface IERC1155Burnable is IERC1155 {
-    function burn(address account, uint256 id, uint256 value) external;
-}
-
 interface ISelfKisser {
     function selfKiss(address oracle) external;
 }
 
-contract CreditBorrowing {
+interface IMyToken is IERC1155 {
+    function burnNFT(uint256 tier) external;
+}
 
-    ERC1155Burnable public creditNFT;
+contract CreditBorrowing {
+    // Credit NFT contract reference
+    IMyToken public creditNFT;
     IChronicle public chronicle;
     ISelfKisser public selfKisser;
 
@@ -56,7 +56,7 @@ contract CreditBorrowing {
         address _chronicle,
         address _selfKisser
     ) {
-        creditNFT = ERC1155Burnable(_creditNFT);
+        creditNFT = IMyToken(_creditNFT);
         chronicle = IChronicle(_chronicle);
         selfKisser = ISelfKisser(_selfKisser);
         selfKisser.selfKiss(address(chronicle));
@@ -131,48 +131,32 @@ contract CreditBorrowing {
         emit Borrowed(msg.sender, borrowAmount, borrowers[msg.sender].collateralAmount, tier);
     }
 
-    // Modified repay function to accept a repayment amount
-    function repayLoan(uint256 repaymentAmount) public payable {
+    // Modified repay function
+    function repayLoan() public payable {
         BorrowerInfo storage borrower = borrowers[msg.sender];
         require(borrower.hasActiveLoan, "No active loan");
-        require(repaymentAmount > 0, "Repayment amount must be greater than 0");
-        require(msg.value == repaymentAmount, "Sent ETH amount does not match repayment amount");
+        require(msg.value <= borrower.borrowedAmount, "Overpay");
 
-        // Ensure repayment is not greater than the borrowed amount
-        require(repaymentAmount <= borrower.borrowedAmount, "Repayment exceeds borrowed amount");
-
-        // Reduce the borrowed amount by the repayment amount
-        borrower.borrowedAmount -= repaymentAmount;
-
-        // If the loan is fully repaid, clear the loan data and return collateral
-        if (borrower.borrowedAmount == 0) {
-            uint256 nftTier = borrower.nftTier;
-            uint256 collateralToReturn = borrower.collateralAmount;
-
-            // Clear borrower data
-            borrower.hasActiveLoan = false;
-            borrower.hasCollateral = false;
-            borrower.collateralAmount = 0;
-            borrower.collateralValueUSD = 0;
-
-            // Burn NFT if user has one
-            if (nftTier != 999) {
-                uint256 nftBalance = creditNFT.balanceOf(msg.sender, nftTier);
-                if (nftBalance > 0) {
-                    creditNFT.burn(msg.sender, nftTier, 1);
-                }
-            }
-
-            // Return collateral
-            (bool success, ) = payable(msg.sender).call{value: collateralToReturn}("");
-            require(success, "Collateral return failed");
-
-            // Emit full loan repayment event
-            emit LoanRepaid(msg.sender, repaymentAmount);
-        } else {
-            // Emit partial loan repayment event
-            emit LoanRepaid(msg.sender, repaymentAmount);
+        // Burn the corresponding NFT tier if the user has one
+        if (borrower.nftTier == GOLD || borrower.nftTier == SILVER || borrower.nftTier == BRONZE) {
+            creditNFT.burnNFT(borrower.nftTier);
         }
+
+        // Return collateral
+        uint256 collateralToReturn = borrower.collateralAmount;
+        
+        // Clear borrower data
+        borrower.borrowedAmount = 0;
+        borrower.hasActiveLoan = false;
+        borrower.hasCollateral = false;
+        borrower.collateralAmount = 0;
+        borrower.collateralValueUSD = 0;
+
+        // Return collateral
+        (bool success, ) = payable(msg.sender).call{value: collateralToReturn}("");
+        require(success, "Collateral return failed");
+
+        emit LoanRepaid(msg.sender, msg.value);
     }
 
     // Rest of the functions remain the same...
@@ -203,51 +187,4 @@ contract CreditBorrowing {
     }
 
     receive() external payable {}
-
-    // Function to get maximum borrowable amount for a user
-    function getMaxBorrowableAmount(address user) public view returns (uint256 maxBorrowableUSD, uint256 maxBorrowableETH) {
-        BorrowerInfo memory borrower = borrowers[user];
-        require(borrower.hasCollateral, "No collateral deposited");
-
-        // Get current collateral value in USD
-        uint256 currentCollateralUSD = getCurrentCollateralValue(user);
-        
-        // Determine user's tier
-        uint256 tier = 999; // Default to no NFT
-        if (creditNFT.balanceOf(user, GOLD) > 0) {
-            tier = GOLD;
-        } else if (creditNFT.balanceOf(user, SILVER) > 0) {
-            tier = SILVER;
-        } else if (creditNFT.balanceOf(user, BRONZE) > 0) {
-            tier = BRONZE;
-        }
-
-        // Calculate ratio based on tier
-        uint256 ratio;
-        if (tier == GOLD) {
-            ratio = GOLD_RATIO;
-        } else if (tier == SILVER) {
-            ratio = SILVER_RATIO;
-        } else if (tier == BRONZE) {
-            ratio = BRONZE_RATIO;
-        } else {
-            ratio = NO_NFT_RATIO;
-        }
-
-        // Calculate max borrowable amount in USD
-        // maxBorrowableUSD = collateralValueUSD * 10000 / ratio
-        maxBorrowableUSD = (currentCollateralUSD * 10000) / ratio;
-
-        // Convert USD to ETH
-        uint256 ethPrice = getEthPrice();
-        maxBorrowableETH = (maxBorrowableUSD * 1e18) / ethPrice;
-
-        // Check if there's enough ETH in the pool
-        if (maxBorrowableETH > address(this).balance) {
-            maxBorrowableETH = address(this).balance;
-            maxBorrowableUSD = calculateUSDValue(maxBorrowableETH);
-        }
-
-        return (maxBorrowableUSD, maxBorrowableETH);
-    }
 }
