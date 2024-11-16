@@ -16,7 +16,7 @@ contract myToken is ERC1155 {
     uint256 public constant SILVER_THRESHOLD = 60;  // 60-79
     uint256 public constant GOLD_THRESHOLD = 80;    // 80-100
 
-    CreditScore public creditScoreContract;
+    setScore public creditScoreContract;
 
     // Mapping to track if user has minted their tier
     mapping(address => bool) public hasMinted;
@@ -25,7 +25,7 @@ contract myToken is ERC1155 {
     event CreditNFTMinted(address indexed user, uint256 tier, uint256 score);
 
     constructor(address _creditScoreContract) ERC1155("https://ipfs.io/ipfs/QmUhSAKtW9CJELgdCBSP4ayDLvc3NLopRQiyETF8exyyvq/{id}.json") {
-        creditScoreContract = CreditScore(_creditScoreContract);
+        creditScoreContract = setScore(_creditScoreContract);
     }
 
     // Get eligible tier based on credit score
