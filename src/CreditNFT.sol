@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";  // Add this import
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "./CreditScore.sol";
 
-contract myToken is ERC1155 {
+contract finToken is ERC1155 {
     // Constants for token IDs
     uint256 public constant BRONZE = 0;
     uint256 public constant SILVER = 1;

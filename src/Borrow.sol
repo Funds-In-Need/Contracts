@@ -12,13 +12,9 @@ interface ISelfKisser {
     function selfKiss(address oracle) external;
 }
 
-interface IMyToken is IERC1155 {
-    function burnNFT(uint256 tier) external;
-}
-
 contract CreditBorrowing {
     // Credit NFT contract reference
-    IMyToken public creditNFT;
+    IERC1155 public finToken;
     IChronicle public chronicle;
     ISelfKisser public selfKisser;
 
@@ -52,11 +48,11 @@ contract CreditBorrowing {
     event CollateralDeposited(address indexed user, uint256 amount, uint256 valueUSD);
 
     constructor(
-        address _creditNFT,
+        address _finToken,
         address _chronicle,
         address _selfKisser
     ) {
-        creditNFT = IMyToken(_creditNFT);
+        finToken = IERC1155(_finToken);
         chronicle = IChronicle(_chronicle);
         selfKisser = ISelfKisser(_selfKisser);
         selfKisser.selfKiss(address(chronicle));
@@ -104,11 +100,11 @@ contract CreditBorrowing {
 
         // Check if user has any credit NFTs
         uint256 tier = 999; // Default to no NFT
-        if (creditNFT.balanceOf(msg.sender, GOLD) > 0) {
+        if (finToken.balanceOf(msg.sender, GOLD) > 0) {
             tier = GOLD;
-        } else if (creditNFT.balanceOf(msg.sender, SILVER) > 0) {
+        } else if (finToken.balanceOf(msg.sender, SILVER) > 0) {
             tier = SILVER;
-        } else if (creditNFT.balanceOf(msg.sender, BRONZE) > 0) {
+        } else if (finToken.balanceOf(msg.sender, BRONZE) > 0) {
             tier = BRONZE;
         }
 
@@ -136,11 +132,6 @@ contract CreditBorrowing {
         BorrowerInfo storage borrower = borrowers[msg.sender];
         require(borrower.hasActiveLoan, "No active loan");
         require(msg.value <= borrower.borrowedAmount, "Overpay");
-
-        // Burn the corresponding NFT tier if the user has one
-        if (borrower.nftTier == GOLD || borrower.nftTier == SILVER || borrower.nftTier == BRONZE) {
-            creditNFT.burnNFT(borrower.nftTier);
-        }
 
         // Return collateral
         uint256 collateralToReturn = borrower.collateralAmount;
